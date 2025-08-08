@@ -6,15 +6,15 @@
 #define SPARSE_STORAGE_LEARNING_COMPONENTS_H
 #include <stdbool.h>
 
-typedef  struct StatComponent {
+typedef  struct {
     int health;
     int attack_level;
     int defense_level;
-} stat_component;
+} StatComponent;
 
-typedef struct CombatComponent {
+typedef struct {
     bool is_attacking;
     bool is_defending;
-} combat_component;
+} CombatComponent;
 
 #endif //SPARSE_STORAGE_LEARNING_COMPONENTS_H

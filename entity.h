@@ -10,6 +10,6 @@
 typedef struct Entity{
     uint32_t entity_id;
     uint32_t entity_version;
-} entity;
+} Entity;
 
 #endif //SPARSE_STORAGE_LEARNING_ENTITY_H
