@@ -16,21 +16,22 @@ typedef struct {
 
 
 typedef struct {
-    uint32_t capacity; // Max allowed enemies
-    uint32_t living_count; // number of entities currently "alive"
     uint32_t *generation; // stores how many times an ID has been reused
     uint32_t *free_ids; // stack of available and recycled IDs for new entities
+
+    uint32_t capacity; // Max allowed enemies
+    uint32_t living_count; // number of entities currently "alive"
     uint32_t free_count; // how many IDs are in the free_ids stack
 } EntityManager;
 
 // init with given capacity, allocates memory for
 // generation tracking and free id stack.
-void entity_manager_init(EntityManager *em, uint32_t capacity) {
+void entity_manager_init(EntityManager *em, const uint32_t capacity) {
     em->capacity = capacity;
     em->living_count = 0;
 
-    em->generation = calloc(capacity, sizeof(uint32_t));
-    em->free_ids = malloc(sizeof(uint32_t) * capacity);
+    em->generation = calloc(capacity, sizeof(uint32_t)); // using calloc because we want initial values to be 0
+    em->free_ids = malloc(sizeof(uint32_t) * capacity); // malloc is faster, we only access index 0 to free_count
 
     // fill the stack with all ids, starting with highest down to 0,
     // this makes popping from the end easier(stack)
@@ -47,7 +48,7 @@ Entity entity_create(EntityManager *em) {
     }
     // Pop the last free ID from the stack.
     // --em->free_count both decrements and returns the new index.
-    uint32_t id = em->free_ids[--em->free_count];
+    const uint32_t id = em->free_ids[--em->free_count];
 
     em->living_count++;
 
@@ -55,4 +56,23 @@ Entity entity_create(EntityManager *em) {
     return (Entity){id, em->generation[id] };
 }
 
-//TODO add entity_destroy and entity validation
+// Destroy entity associated with given ID
+void entity_destroy(EntityManager *em, Entity e) {
+    const uint32_t id = e.id;
+
+    // stale reference check
+    if (em->generation[id] != e.generation) {
+        return;
+    }
+    // increase generation number, invalidates older gens
+    em->generation[id]++;
+    // push ID back into free stack for reuse using free count, decrement living.
+    // ex: free_count = 3 means IDs are in slot 0, 1, 2 so the next empty slot is 3, then increment++
+    em->free_ids[em->free_count++] = id;
+    em->living_count--;
+}
+
+int entity_is_alive(const EntityManager *em, const Entity e) {
+    return em->generation[e.id] == e.generation;
+}
+
