@@ -7,6 +7,10 @@
 #include <stdbool.h>
 
 typedef  struct {
+    char *name;
+} NameComponent;
+
+typedef  struct {
     int health;
     int attack_level;
     int defense_level;

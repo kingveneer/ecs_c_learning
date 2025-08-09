@@ -4,34 +4,23 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include "entity_manager.h"
 /*
  *note for stupid(me)*
-uint32 is exactly 32 bits on all platforms, with a max value of 4,294,967,295.
+uint32 adds consistency, as it's exactly 32 bits on all platforms, with a max value of 4,294,967,295.
 */
 
-typedef struct {
-    uint32_t id; // for indexing into component arrays to find its specific components
-    uint32_t generation; // version number to check component validity, prevents stale values
-} Entity;
 
-
-typedef struct {
-    uint32_t *generation; // stores how many times an ID has been reused
-    uint32_t *free_ids; // stack of available and recycled IDs for new entities
-
-    uint32_t capacity; // Max allowed enemies
-    uint32_t living_count; // number of entities currently "alive"
-    uint32_t free_count; // how many IDs are in the free_ids stack
-} EntityManager;
 
 // init with given capacity, allocates memory for
 // generation tracking and free id stack.
 void entity_manager_init(EntityManager *em, const uint32_t capacity) {
     em->capacity = capacity;
     em->living_count = 0;
-
-    em->generation = calloc(capacity, sizeof(uint32_t)); // using calloc because we want initial values to be 0
-    em->free_ids = malloc(sizeof(uint32_t) * capacity); // malloc is faster, we only access index 0 to free_count
+    // using calloc because we want initial values to be 0
+    em->generation = calloc(capacity, sizeof(uint32_t));
+    // malloc is faster, we only access index 0 to free_count
+    em->free_ids = malloc(sizeof(uint32_t) * capacity);
 
     // fill the stack with all ids, starting with highest down to 0,
     // this makes popping from the end easier(stack)
@@ -72,7 +61,13 @@ void entity_destroy(EntityManager *em, Entity e) {
     em->living_count--;
 }
 
-int entity_is_alive(const EntityManager *em, const Entity e) {
+void entity_destroy_many(EntityManager *em, const Entity *entities, uint32_t count) {
+    for (uint32_t i = 0; i < count; i++) {
+        entity_destroy(em, entities[i]);
+    }
+}
+
+int entity_is_alive(const EntityManager *em,  Entity e) {
     return em->generation[e.id] == e.generation;
 }
 
