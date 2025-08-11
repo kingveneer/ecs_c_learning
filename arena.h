@@ -19,7 +19,7 @@ void* arena_alloc_aligned(Arena *arena, size_t size, size_t alignment);
 void arena_reset(Arena *arena);
 void arena_destroy(Arena *arena);
 // for check points
-size_t arena_checkpoint(Arena *arena);
-void arena_restore(Arena,size_t checkpoint);
+size_t arena_checkpoint(const Arena *arena);
+void arena_restore(Arena *arena,size_t checkpoint);
 
 #endif //SPARSE_STORAGE_LEARNING_ARENA_H
