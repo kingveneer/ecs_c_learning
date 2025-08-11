@@ -15,4 +15,6 @@ add_executable(sparse_storage_learning main.c
         storage_manager.c
         storage_manager.h
         death_queue.c
-        death_queue.h)
+        death_queue.h
+        arena.c
+        arena.h)
