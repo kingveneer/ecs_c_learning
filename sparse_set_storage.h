@@ -8,6 +8,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "arena.h"
+
 typedef struct {
     uint32_t *sparse;         // entity id -> dense index
     uint32_t *dense_entities; // dense index -> entity id
@@ -15,10 +17,11 @@ typedef struct {
     uint32_t dense_count;
     uint32_t capacity;
     size_t comp_size;
+    Arena *arena;  // Arena this set uses (can be shared)
 } SparseSet;
 
 // Initialize sparse set for a given capacity and component size
-void sparse_set_init(SparseSet *set, uint32_t capacity, size_t comp_size);
+void sparse_set_init(SparseSet *set, uint32_t capacity, size_t comp_size, Arena *arena);
 
 // Add or update a component for an entity
 void sparse_set_add(SparseSet *set, uint32_t entity, const void *component_data);

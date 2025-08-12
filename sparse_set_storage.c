@@ -9,17 +9,24 @@
 
 
 
-void sparse_set_init(SparseSet *set, const uint32_t capacity, const size_t comp_size) {
+void sparse_set_init(SparseSet *set, const uint32_t capacity, const size_t comp_size, Arena *arena) {
     set->capacity = capacity;
     set->comp_size = comp_size;
     set->dense_count = 0;
+    set->arena = arena;
 
-    set->sparse = malloc(sizeof(uint32_t) * capacity); // uses uint32_t bc that is the size of IDs
+    // Allocate from arena
+    set->sparse = arena_alloc(arena, sizeof(uint32_t) * capacity);
+
+    // Initialize sparse array
     for (uint32_t i = 0; i < capacity; i++) {
         set->sparse[i] = UINT32_MAX;
     }
-    set->dense_entities = malloc(sizeof(uint32_t) * capacity);
-    set->dense_data = malloc(comp_size * capacity); // uses comp_size to store different size components
+
+    set->dense_entities = arena_alloc(arena, sizeof(uint32_t) * capacity);
+
+    // Align component data for better cache performance
+    set->dense_data = arena_alloc_aligned(arena, comp_size * capacity, 64);
 }
 
 void sparse_set_add(SparseSet *set, const uint32_t entity, const void *component_data) {
