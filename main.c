@@ -1,69 +1,77 @@
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include <stdlib.h>
+#include <time.h>
+#include "world.h"
+#include "entity_factory.h"
+#include "combat_system.h"
 
-#include "entity_manager.h"
-#include "sparse_set_storage.h"
-#include  "components.h"
+void run_battle(World *world) {
+    clock_t start_time = clock();
 
+    printf("\n=== BATTLE BEGINS ===\n");
+    world->battle_active = true;
 
-int main(void) {
-    // entity manager capable of handling 100 entities
-    EntityManager em;
-    entity_manager_init(&em, 100);
+    while (world->battle_active && world->turn_number < 10000) {
+        printf("\n--- Turn %u ---\n", ++world->turn_number);
 
-    // one sparse set per component type
-    SparseSet names, stats, combats;
-    sparse_set_init(&names, 100, sizeof(NameComponent));
-    sparse_set_init(&stats, 100, sizeof(StatComponent));
-    sparse_set_init(&combats, 100, sizeof(CombatComponent));
+        // 1. Target acquisition
+        combat_system_target_acquisition(world);
 
-    // create goblin
-    for (int i = 0; i < 50; i++) {
-        Entity goblin = entity_create(&em);
+        // 2. Execute attacks
+        combat_system_execute_attacks(world);
 
-        NameComponent goblin_name = {"Goblin"};
-        StatComponent goblin_stats = {30, 5, 2};
-        CombatComponent goblin_combat = {false, false};
+        // 3. Process deaths
+        combat_system_process_deaths(world);
 
-        sparse_set_add(&names, goblin.id, &goblin_name);
-        sparse_set_add(&stats, goblin.id, &goblin_stats);
-        sparse_set_add(&combats, goblin.id, &goblin_combat);
-    }
-    // create gnome
-
-
-    printf("=== Entity Stats ===\n");
-    for (uint32_t i= 0; i < stats.dense_count; i++) {
-        uint32_t ent_id = stats.dense_entities[i];
-        NameComponent *n = sparse_set_get(&names, ent_id);
-        StatComponent *s = sparse_set_get(&stats, ent_id);
-        printf("%s -> HP: %d, ATK %d, DEF %d\n",
-                n->name, s->health, s->attack_level, s->defense_level);
-    }
-
-    for (uint32_t i = stats.dense_count - 1; i >= 0; i--) {
-        // Get the entity ID from dense storage
-        uint32_t ent_id = stats.dense_entities[i];
-
-        // Get its name component
-        NameComponent *n = sparse_set_get(&names, ent_id);
-
-        // Check if this entity is a goblin
-        if (strcmp(n->name, "goblin") == 0) {
-            // Retrieve the full Entity struct for generation checking
-            Entity e = em.living;
-
-            // Destroy the entity (frees ID + increments generation)
-            entity_destroy(&em, e);
-
-            // Remove its components from their sparse sets
-            sparse_set_remove(&names, ent_id);
-            sparse_set_remove(&stats, ent_id);
-            sparse_set_remove(&combats, ent_id);
-
-            printf("Removed goblin (Entity ID: %u)\n", ent_id);
+        // 4. Check victory
+        if (combat_system_check_victory(world)) {
+            world->battle_active = false;
+            break;
         }
+
+        // Optional: pause for dramatic effect
+        // getchar();  // Press enter to continue
     }
+
+    if (world->turn_number >= 10000) {
+        printf("\nBattle timeout - draw!\n");
+    }
+
+    clock_t end_time = clock();
+    double time_taken = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
+    printf("\nBattle simulation finished in %.4f seconds.\n", time_taken);
+}
+
+int main() {
+    srand(time(NULL));
+
+    // Create world
+    World *world = world_create(10000);
+
+    printf("=== ECS BATTLE SIMULATOR ===\n");
+
+    while (1) {
+        printf("\nEnter number of units per team (0 to exit): ");
+        int count;
+        scanf("%d", &count);
+
+        if (count <= 0) break;
+
+        // Reset for new battle
+        world_reset_battle(world);
+
+        // Spawn armies
+        printf("Spawning %d units per team...\n", count);
+        spawn_army(world, 0, count);  // Team A
+        spawn_army(world, 1, count);  // Team B
+
+        // Run the battle
+        run_battle(world);
+    }
+
+    printf("Thanks for playing!\n");
+    world_destroy(world);
+
+
     return 0;
 }

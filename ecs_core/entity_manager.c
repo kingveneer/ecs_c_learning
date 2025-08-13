@@ -71,3 +71,14 @@ int entity_is_alive(const EntityManager *em,  Entity e) {
     return em->generation[e.id] == e.generation;
 }
 
+void entity_manager_free(EntityManager *em) {
+    if (em) {
+        free(em->generation);
+        free(em->free_ids);
+        em->generation = NULL;
+        em->free_ids = NULL;
+        em->capacity = 0;
+        em->living_count = 0;
+        em->free_count = 0;
+    }
+}

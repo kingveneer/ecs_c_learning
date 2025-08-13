@@ -9,8 +9,8 @@
 #include <string.h> // strcmp used in example tallying
 #include <stdio.h>  // printf for debug/tally - optional
 
-#include "entity_manager.h"  // Entity, EntityManager, entity_destroy, entity_is_alive
-#include "sparse_set_storage.h"// your SparseSet definition + functions
+#include "entity_manager.h"
+#include "sparse_set_storage.h"
 
 typedef struct {
     SparseSet **sets;   // dynamic array of pointers to SparseSet

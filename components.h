@@ -5,6 +5,7 @@
 #ifndef SPARSE_STORAGE_LEARNING_COMPONENTS_H
 #define SPARSE_STORAGE_LEARNING_COMPONENTS_H
 #include <stdbool.h>
+#include "ecs_core/entity_manager.h"
 
 typedef struct {
     char name[32];  // "Team A Soldier #1"
@@ -17,8 +18,10 @@ typedef struct {
 
 typedef  struct {
     int health;
-    int attack_level;
-    int defense_level;
+    int max_health;
+    int attack;
+    int defense;
+    float speed;
 } StatComponent;
 
 typedef struct {

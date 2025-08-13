@@ -5,14 +5,15 @@
 #ifndef SPARSE_STORAGE_LEARNING_WORLD_H
 #define SPARSE_STORAGE_LEARNING_WORLD_H
 
-#include "entity_manager.h"
-#include "storage_manager.h"
-#include "death_queue.h"
-#include "sparse_set_storage.h"
+#include "ecs_core/arena.h"
+#include "ecs_core/entity_manager.h"
+#include "ecs_core/storage_manager.h"
+#include "ecs_core/death_queue.h"
+#include "ecs_core/sparse_set_storage.h"
 #include "components.h"
 #include "entity_factory.h"
 
-typedef struct {
+typedef struct World {
     // ECS Core
     EntityManager *entity_manager;
     StorageManager *storage_manager;
