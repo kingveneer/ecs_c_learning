@@ -38,6 +38,12 @@ Entity spawn_soldier(World *world, uint8_t team_id, uint32_t unit_number) {
     // Add components to entity
     sparse_set_add(world->stats_storage, soldier.id, &stats);
     sparse_set_add(world->team_storage, soldier.id, &team);
+    // add ID to index storage
+    if (team_id == 0) {
+        sparse_set_add(world->team_a_storage, soldier.id, NULL);
+    } else {
+        sparse_set_add(world->team_b_storage, soldier.id, NULL);
+    }
     sparse_set_add(world->combat_storage, soldier.id, &combat);
     sparse_set_add(world->name_storage, soldier.id, &name);
 

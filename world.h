@@ -26,6 +26,8 @@ typedef struct World {
     // Component Storages
     SparseSet *stats_storage;
     SparseSet *team_storage;
+    SparseSet *team_a_storage;
+    SparseSet *team_b_storage;
     SparseSet *combat_storage;
     SparseSet *name_storage;
 

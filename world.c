@@ -28,9 +28,12 @@ World* world_create(size_t max_entities) {
     // initialize temporary battle storage
     world->stats_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->stats_storage, max_entities, sizeof(StatComponent), battle);
-
     world->team_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->team_storage, max_entities, sizeof(TeamComponent), battle);
+    world->team_a_storage = arena_alloc(persistent, sizeof(SparseSet));
+    sparse_set_init(world->team_a_storage, max_entities, 0, battle);
+    world->team_b_storage = arena_alloc(persistent, sizeof(SparseSet));
+    sparse_set_init(world->team_b_storage, max_entities, 0, battle);
 
     world->combat_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->combat_storage, max_entities, sizeof(CombatComponent), battle);
@@ -41,6 +44,8 @@ World* world_create(size_t max_entities) {
     // register temp storages
     storage_manager_register(world->storage_manager, world->stats_storage);
     storage_manager_register(world->storage_manager, world->team_storage);
+    storage_manager_register(world->storage_manager, world->team_a_storage);
+    storage_manager_register(world->storage_manager, world->team_b_storage);
     storage_manager_register(world->storage_manager, world->combat_storage);
     storage_manager_register(world->storage_manager, world->name_storage);
 
@@ -61,6 +66,10 @@ void world_reset_battle(World *world) {
             sizeof(StatComponent), world->battle_arena);
     sparse_set_init(world->team_storage, entity_capacity,
             sizeof(TeamComponent), world->battle_arena);
+    sparse_set_init(world->team_a_storage, entity_capacity,
+            0, world->battle_arena);
+    sparse_set_init(world->team_b_storage, entity_capacity,
+            0, world->battle_arena);
     sparse_set_init(world->combat_storage, entity_capacity,
             sizeof(CombatComponent), world->battle_arena);
     sparse_set_init(world->name_storage, entity_capacity,

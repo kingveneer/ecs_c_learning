@@ -30,5 +30,12 @@ typedef struct {
     float attack_cooldown;
 } CombatComponent;
 
+// groups all combat-related components into a single, cache-friendly block of memory.
+typedef struct {
+    StatComponent stats;
+    TeamComponent team;
+    CombatComponent combat;
+    NameComponent name;
+} CombatantBundle;
 
 #endif //SPARSE_STORAGE_LEARNING_COMPONENTS_H

@@ -11,26 +11,29 @@ static Entity find_weakest_enemy(World *world, Entity attacker) {
     TeamComponent *attacker_team = sparse_set_get(world->team_storage, attacker.id);
     if (!attacker_team) return (Entity){UINT32_MAX, 0};
 
+    // CHOOSE THE CORRECT ENEMY INDEX TO SEARCH
+    SparseSet* enemy_team_storage = (attacker_team->team_id == 0)
+                                    ? world->team_b_storage
+                                    : world->team_a_storage;
+
     Entity weakest = {UINT32_MAX, 0};
-    float best_priority = -1.0f;
+    int lowest_health = INT32_MAX;
 
-    // Iterate through all entities with team  components
-    for (uint32_t i = 0; i < world->team_storage->dense_count; i++) {
-        uint32_t enemy_id = world->team_storage->dense_entities[i];
-        Entity enemy = {enemy_id, world->entity_manager->generation[enemy_id]};
+    // ITERATE ONLY OVER THE ENEMY TEAM
+    for (uint32_t i = 0; i < enemy_team_storage->dense_count; i++) {
+        uint32_t enemy_id = enemy_team_storage->dense_entities[i];
 
-        if (!entity_is_alive(world->entity_manager, enemy)) continue;
-
-        TeamComponent *enemy_team = sparse_set_get(world->team_storage, enemy_id);
-        if (enemy_team->team_id == attacker_team->team_id) continue;  // Same team
-
+        // We already know this entity is on the enemy team, so no team check is needed.
+        // We still need to get its stats.
         StatComponent *enemy_stats = sparse_set_get(world->stats_storage, enemy_id);
-        if (!enemy_stats || enemy_stats->health <= 0) continue;
 
-        float priority = 1000.0f - enemy_stats->health;
-        if (priority > best_priority) {
-            best_priority = priority;
-            weakest = enemy;
+        // The entity is guaranteed to be alive because it's removed from this
+        // list by process_deaths. We just check stats.
+        if (enemy_stats && enemy_stats->health < lowest_health) {
+            lowest_health = enemy_stats->health;
+            weakest.id = enemy_id;
+            // We must get the current generation for the handle to be valid.
+            weakest.generation = world->entity_manager->generation[enemy_id];
         }
     }
     return weakest;
@@ -138,26 +141,15 @@ void combat_system_process_deaths(World *world) {
 }
 
 bool combat_system_check_victory(World *world) {
-    int team_a_alive = 0;
-    int team_b_alive = 0;
+    uint32_t team_a_alive = world->team_a_storage->dense_count;
+    uint32_t team_b_alive = world->team_b_storage->dense_count;
 
-    for (uint32_t i = 0; i < world->team_storage->dense_count; i++) {
-        uint32_t entity_id = world->team_storage->dense_entities[i];
-
-        StatComponent *stats = sparse_set_get(world->stats_storage, entity_id);
-        TeamComponent *team = sparse_set_get(world->team_storage, entity_id);
-
-        if (stats && team && stats->health > 0) {
-            if (team->team_id == 0) team_a_alive++;
-            else team_b_alive++;
-        }
-    }
     if (team_a_alive == 0 || team_b_alive == 0) {
         printf("\n=== BATTLE COMPLETE ===\n");
         if (team_a_alive > 0) {
-            printf("Team A wins with %d survivors!\n", team_a_alive);
+            printf("Team A wins with %u survivors!\n", team_a_alive);
         } else if (team_b_alive > 0) {
-            printf("Team B wins with %d survivors!\n", team_b_alive);
+            printf("Team B wins with %u survivors!\n", team_b_alive);
         } else {
             printf("It's a draw - mutual destruction!\n");
         }

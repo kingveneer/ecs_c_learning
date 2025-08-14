@@ -25,18 +25,24 @@ void sparse_set_init(SparseSet *set, const uint32_t capacity, const size_t comp_
 
     set->dense_entities = arena_alloc(arena, sizeof(uint32_t) * capacity);
 
-    // Align component data for better cache performance
-    set->dense_data = arena_alloc_aligned(arena, comp_size * capacity, 64);
+    // Only allocate component data if there is component data to store.
+    if (set->comp_size > 0) {
+        // Align component data for better cache performance
+        set->dense_data = arena_alloc_aligned(arena, comp_size * capacity, 64);
+    } else {
+        set->dense_data = NULL; // For index-only sets
+    }
 }
 
 void sparse_set_add(SparseSet *set, const uint32_t entity, const void *component_data) {
     const uint32_t index = set->sparse[entity];
     // if has component, overwrite
     if (index != UINT32_MAX) {
-        // char* 1 bit offset by index * comp_size used to pick the start of the memory we want to change
-        void *dest = (char*)set->dense_data + (index * set->comp_size);
-        //copy data to destination, from component data, with comp_size bits
-        memcpy(dest, component_data, set->comp_size);
+        // only copy data if the set is not index-only.
+        if (set->comp_size > 0) {
+            void *dest = (char*)set->dense_data + (index * set->comp_size);
+            memcpy(dest, component_data, set->comp_size);
+        }
         return;
     }
     // create new component
@@ -44,8 +50,11 @@ void sparse_set_add(SparseSet *set, const uint32_t entity, const void *component
     set->dense_entities[dense_index] = entity;
     set->sparse[entity] = dense_index;
 
-    void *dest = (char*)set->dense_data + (dense_index * set->comp_size);
-    memcpy(dest, component_data, set->comp_size);
+    // Only copy data if the set is not index-only.
+    if (set->comp_size > 0) {
+        void *dest = (char*)set->dense_data + (dense_index * set->comp_size);
+        memcpy(dest, component_data, set->comp_size);
+    }
 }
 
 void sparse_set_remove(SparseSet *set, const uint32_t entity) {
@@ -59,10 +68,13 @@ void sparse_set_remove(SparseSet *set, const uint32_t entity) {
 
     //copy last entity into removed slot from provided entity
     set->dense_entities[index] = last_entity;
-    // set component data of last entity into the removed slot
-    void *dest = (char*)set->dense_data + (index * set->comp_size);
-    const void *src = (char*)set->dense_data + (last_index * set->comp_size);
-    memcpy(dest, src, set->comp_size); // from, to, size
+
+    // only move component data if there is any to move.
+    if (set->comp_size > 0) {
+        void *dest = (char*)set->dense_data + (index * set->comp_size);
+        const void *src = (char*)set->dense_data + (last_index * set->comp_size);
+        memcpy(dest, src, set->comp_size); // from, to, size
+    }
 
     set->sparse[last_entity] = index;
     set->sparse[entity] = UINT32_MAX;
@@ -70,6 +82,11 @@ void sparse_set_remove(SparseSet *set, const uint32_t entity) {
 }
 
 void* sparse_set_get(const SparseSet *set, const uint32_t entity) {
+    // NEW: Index-only sets never return component data.
+    // Also, this prevents reading from a NULL dense_data pointer.
+    if (set->comp_size == 0) {
+        return NULL;
+    }
     const uint32_t index = set->sparse[entity];
     if (index == UINT32_MAX) return NULL;
     return (char*)set->dense_data + (index * set->comp_size);
