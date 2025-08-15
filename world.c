@@ -6,16 +6,16 @@
 #include <stdio.h>
 
 World* world_create(size_t max_entities) {
-    // create arenas
-    Arena *persistent = arena_create(8 * 1024 * 1024); // 8MB
-    Arena *battle = arena_create(4 * 1024 * 1024); // 4MB
+    // Create arenas
+    Arena *persistent = arena_create(16 * 1024 * 1024); // 16MB
+    Arena *battle = arena_create(16 * 1024 * 1024); // 16MB
 
-    // allocate world
+    // Allocate the world struct itself from the persistent arena
     World *world = arena_alloc(persistent, sizeof(World));
     world->persistent_arena = persistent;
     world->battle_arena = battle;
 
-    // initialize permanent arenas
+    // Initialize core ECS managers, allocating them in the persistent arena
     world->entity_manager = arena_alloc(persistent, sizeof(EntityManager));
     entity_manager_init(world->entity_manager, max_entities);
 
@@ -25,32 +25,27 @@ World* world_create(size_t max_entities) {
     world->death_queue = arena_alloc(persistent, sizeof(DeathQueue));
     death_queue_init(world->death_queue, 16);
 
-    // initialize temporary battle storage
-    world->stats_storage = arena_alloc(persistent, sizeof(SparseSet));
-    sparse_set_init(world->stats_storage, max_entities, sizeof(StatComponent), battle);
-    world->team_storage = arena_alloc(persistent, sizeof(SparseSet));
-    sparse_set_init(world->team_storage, max_entities, sizeof(TeamComponent), battle);
+    world->combatant_storage = arena_alloc(persistent, sizeof(SparseSet));
+    sparse_set_init(world->combatant_storage, max_entities, sizeof(CombatantBundle), battle);
+
     world->team_a_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->team_a_storage, max_entities, 0, battle);
+
     world->team_b_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->team_b_storage, max_entities, 0, battle);
 
-    world->combat_storage = arena_alloc(persistent, sizeof(SparseSet));
-    sparse_set_init(world->combat_storage, max_entities, sizeof(CombatComponent), battle);
-
-    world->name_storage = arena_alloc(persistent, sizeof(SparseSet));
-    sparse_set_init(world->name_storage, max_entities, sizeof(NameComponent), battle);
-
-    // register temp storages
-    storage_manager_register(world->storage_manager, world->stats_storage);
-    storage_manager_register(world->storage_manager, world->team_storage);
+    // Register all temporary storages with the storage manager
+    storage_manager_register(world->storage_manager, world->combatant_storage);
     storage_manager_register(world->storage_manager, world->team_a_storage);
     storage_manager_register(world->storage_manager, world->team_b_storage);
-    storage_manager_register(world->storage_manager, world->combat_storage);
-    storage_manager_register(world->storage_manager, world->name_storage);
 
     world->battle_active = false;
     world->turn_number = 0;
+
+    // Initialize cache (NEW)
+    world->weakest_team_a = (Entity){UINT32_MAX, 0};
+    world->weakest_team_b = (Entity){UINT32_MAX, 0};
+    world->needs_target_update = true;
 
     return world;
 }
@@ -62,18 +57,12 @@ void world_reset_battle(World *world) {
     uint32_t entity_capacity = world->entity_manager->capacity;
 
     // Re-initialize sparse sets with the battle arena
-    sparse_set_init(world->stats_storage, entity_capacity,
-            sizeof(StatComponent), world->battle_arena);
-    sparse_set_init(world->team_storage, entity_capacity,
-            sizeof(TeamComponent), world->battle_arena);
+    sparse_set_init(world->combatant_storage, entity_capacity,
+            sizeof(CombatantBundle), world->battle_arena);
     sparse_set_init(world->team_a_storage, entity_capacity,
             0, world->battle_arena);
     sparse_set_init(world->team_b_storage, entity_capacity,
             0, world->battle_arena);
-    sparse_set_init(world->combat_storage, entity_capacity,
-            sizeof(CombatComponent), world->battle_arena);
-    sparse_set_init(world->name_storage, entity_capacity,
-            sizeof(NameComponent), world->battle_arena);
 
     // Reset entity manager
     entity_manager_free(world->entity_manager);
@@ -85,6 +74,11 @@ void world_reset_battle(World *world) {
     world->team_a_count = 0;
     world->team_b_count = 0;
     world->turn_number = 0;
+
+    // Reset cache (NEW)
+    world->weakest_team_a = (Entity){UINT32_MAX, 0};
+    world->weakest_team_b = (Entity){UINT32_MAX, 0};
+    world->needs_target_update = true;
 }
 
 void world_destroy(World *world) {

@@ -6,140 +6,191 @@
 #include "components.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h> // Required for INT_MAX
 
-static Entity find_weakest_enemy(World *world, Entity attacker) {
-    TeamComponent *attacker_team = sparse_set_get(world->team_storage, attacker.id);
-    if (!attacker_team) return (Entity){UINT32_MAX, 0};
-
-    // CHOOSE THE CORRECT ENEMY INDEX TO SEARCH
-    SparseSet* enemy_team_storage = (attacker_team->team_id == 0)
-                                    ? world->team_b_storage
-                                    : world->team_a_storage;
-
+/**
+ * @brief Finds the weakest unit in a specific team.
+ * This is called once per team per turn when the cache needs updating.
+ */
+static Entity find_weakest_in_team(World *world, uint8_t team_id) {
     Entity weakest = {UINT32_MAX, 0};
-    int lowest_health = INT32_MAX;
+    int lowest_health = INT_MAX;
 
-    // ITERATE ONLY OVER THE ENEMY TEAM
-    for (uint32_t i = 0; i < enemy_team_storage->dense_count; i++) {
-        uint32_t enemy_id = enemy_team_storage->dense_entities[i];
+    CombatantBundle *all_combatants = world->combatant_storage->dense_data;
 
-        // We already know this entity is on the enemy team, so no team check is needed.
-        // We still need to get its stats.
-        StatComponent *enemy_stats = sparse_set_get(world->stats_storage, enemy_id);
+    for (uint32_t i = 0; i < world->combatant_storage->dense_count; i++) {
+        CombatantBundle *combatant = &all_combatants[i];
 
-        // The entity is guaranteed to be alive because it's removed from this
-        // list by process_deaths. We just check stats.
-        if (enemy_stats && enemy_stats->health < lowest_health) {
-            lowest_health = enemy_stats->health;
-            weakest.id = enemy_id;
-            // We must get the current generation for the handle to be valid.
-            weakest.generation = world->entity_manager->generation[enemy_id];
+        if (combatant->team.team_id == team_id && combatant->stats.health > 0) {
+            if (combatant->stats.health < lowest_health) {
+                lowest_health = combatant->stats.health;
+                uint32_t entity_id = world->combatant_storage->dense_entities[i];
+                weakest.id = entity_id;
+                weakest.generation = world->entity_manager->generation[entity_id];
+            }
         }
     }
+
     return weakest;
 }
 
+/**
+ * @brief Updates the cached weakest enemies for both teams.
+ * Only runs when needs_target_update flag is set.
+ */
+static void update_weakest_cache(World *world) {
+    if (!world->needs_target_update) return;
+
+    // Find weakest once for each team
+    world->weakest_team_a = find_weakest_in_team(world, 0);
+    world->weakest_team_b = find_weakest_in_team(world, 1);
+    world->needs_target_update = false;
+}
+
+/**
+ * @brief Assigns a target to any combatant that doesn't have a valid one.
+ * Now uses cached weakest enemies instead of searching every time.
+ */
 void combat_system_target_acquisition(World *world) {
-    // For each entity with combat component
-    for (uint32_t i = 0; i < world->combat_storage->dense_count; i++) {
-        uint32_t entity_id = world->combat_storage->dense_entities[i];
-        Entity attacker = {entity_id, world->entity_manager->generation[entity_id]};
+    // Update cache ONCE at the start of targeting phase
+    update_weakest_cache(world);
 
-        if (!entity_is_alive(world->entity_manager, attacker)) continue;
+    CombatantBundle *all_combatants = world->combatant_storage->dense_data;
 
-        CombatComponent *combat = sparse_set_get(world->combat_storage, entity_id);
-        StatComponent *stats = sparse_set_get(world->stats_storage, entity_id);
+    // Iterate directly over the data
+    for (uint32_t i = 0; i < world->combatant_storage->dense_count; i++) {
+        CombatantBundle *bundle = &all_combatants[i];
 
-        if (!stats || stats->health <= 0) continue;
+        // Only retarget if current target is invalid or dead
+        if (bundle->combat.target.id == UINT32_MAX ||
+            !entity_is_alive(world->entity_manager, bundle->combat.target)) {
 
-        // If no valid target, find one
-        if (combat->target.id == UINT32_MAX || !entity_is_alive(world->entity_manager, combat->target)) {
-            combat->target = find_weakest_enemy(world, attacker);
-            combat->is_attacking = (combat->target.id != UINT32_MAX);
+            // Use cached weakest enemy instead of searching
+            if (bundle->team.team_id == 0) {
+                bundle->combat.target = world->weakest_team_b;
+            } else {
+                bundle->combat.target = world->weakest_team_a;
+            }
+
+            bundle->combat.is_attacking = (bundle->combat.target.id != UINT32_MAX);
         }
     }
 }
 
+/**
+ * @brief Executes all attacks for the current turn with optimized data access.
+ * Now includes caching of dense indices to reduce lookups.
+ */
 void combat_system_execute_attacks(World *world) {
-    // Collect all attacks first (using frame arena for temp storage)
-    // save current memory arena to "rewind" and free all temp allocations at once
     size_t checkpoint = arena_checkpoint(world->battle_arena);
 
     typedef struct {
         Entity attacker;
         Entity target;
+        uint32_t attacker_dense_idx;  // Cache dense indices
+        uint32_t target_dense_idx;
         int damage;
     } AttackEvent;
 
     AttackEvent *events = arena_alloc(world->battle_arena,
-                                      sizeof(AttackEvent) * 1000);
+                                      sizeof(AttackEvent) * world->combatant_storage->dense_count);
     int event_count = 0;
 
-    // Gather attacks
-    for (uint32_t i = 0; i < world->combat_storage->dense_count; i++) {
-        uint32_t entity_id = world->combat_storage->dense_entities[i];
-        Entity attacker = {entity_id, world->entity_manager->generation[entity_id]};
-        // if alive
-        if (!entity_is_alive(world->entity_manager, attacker)) continue;
-        // if has combat component
-        CombatComponent *combat = sparse_set_get(world->combat_storage, entity_id);
-        if (!combat->is_attacking) continue;
-        // skip dead entities
-        StatComponent *attacker_stats = sparse_set_get(world->stats_storage, entity_id);
-        if (!attacker_stats || attacker_stats->health <= 0) continue;
-        // check attacker has stats and isn't dead
-        if (combat->target.id != UINT32_MAX && entity_is_alive(world->entity_manager, combat->target)) {
-            StatComponent *target_stats = sparse_set_get(world->stats_storage, combat->target.id);
-            if (target_stats && target_stats->health > 0) {
-                // Calculate damage
-                int damage = attacker_stats->attack - target_stats->defense;
-                if (damage < 1) damage = 1;  // Minimum 1 damage
+    CombatantBundle *all_combatants = world->combatant_storage->dense_data;
 
-                events[event_count++] = (AttackEvent){
-                    .attacker = attacker,
-                    .target = combat->target,
-                    .damage = damage
-                };
-            }
-        }
-    }
-    // Apply damage
-    for (int i = 0; i < event_count; i++) {
-        AttackEvent *event = &events[i];
-        StatComponent *target_stats = sparse_set_get(world->stats_storage, event->target.id);
-        if (target_stats) {
-            if (target_stats && target_stats->health > 0){
-                target_stats->health -= event->damage;
+    // --- GATHER PHASE (Optimized with cached indices) ---
+    for (uint32_t i = 0; i < world->combatant_storage->dense_count; i++) {
+        CombatantBundle *attacker_bundle = &all_combatants[i];
 
-                NameComponent *attacker_name = sparse_set_get(world->name_storage, event->attacker.id);
-                NameComponent *target_name = sparse_set_get(world->name_storage, event->target.id);
+        if (!attacker_bundle->combat.is_attacking) continue;
 
-                printf("%s attacks %s for %d damage! (%d hp remaining)\n",
-                       attacker_name->name, target_name->name,
-                       event->damage, target_stats->health);
+        if (attacker_bundle->combat.target.id != UINT32_MAX &&
+            entity_is_alive(world->entity_manager, attacker_bundle->combat.target)) {
 
-                if (target_stats->health <= 0) {
-                    printf("  >> %s has been defeated!\n", target_name->name);
-                    death_queue_push(world->death_queue, event->target);
+            // Get target's dense index from sparse array
+            uint32_t target_dense_idx = world->combatant_storage->sparse[attacker_bundle->combat.target.id];
 
-                    // Clear attacker's target
-                    CombatComponent *attacker_combat = sparse_set_get(world->combat_storage, event->attacker.id);
-                    if (attacker_combat) {
-                        attacker_combat->target = (Entity){UINT32_MAX, 0};
-                        attacker_combat->is_attacking = false;
-                    }
+            // Validate the dense index
+            if (target_dense_idx != UINT32_MAX && target_dense_idx < world->combatant_storage->dense_count) {
+                CombatantBundle *target_bundle = &all_combatants[target_dense_idx];
+
+                if (target_bundle->stats.health > 0) {
+                    int damage = attacker_bundle->stats.attack - target_bundle->stats.defense;
+                    if (damage < 1) damage = 1;
+
+                    Entity attacker_entity = {
+                        .id = world->combatant_storage->dense_entities[i],
+                        .generation = world->entity_manager->generation[world->combatant_storage->dense_entities[i]]
+                    };
+
+                    events[event_count++] = (AttackEvent){
+                        .attacker = attacker_entity,
+                        .target = attacker_bundle->combat.target,
+                        .attacker_dense_idx = i,
+                        .target_dense_idx = target_dense_idx,
+                        .damage = damage
+                    };
                 }
             }
         }
     }
-    // Restore arena (frees the events array)
+
+    // --- APPLY PHASE (Using cached indices) ---
+    bool any_damage_dealt = false;
+
+    for (int i = 0; i < event_count; i++) {
+        AttackEvent *event = &events[i];
+
+        // Direct access using cached dense index
+        if (event->target_dense_idx < world->combatant_storage->dense_count) {
+            CombatantBundle *target_bundle = &all_combatants[event->target_dense_idx];
+            CombatantBundle *attacker_bundle = &all_combatants[event->attacker_dense_idx];
+
+            if (target_bundle->stats.health > 0) {
+                target_bundle->stats.health -= event->damage;
+                any_damage_dealt = true;
+
+                printf("%s attacks %s for %d damage! (%d hp remaining)\n",
+                       attacker_bundle->name.name, target_bundle->name.name,
+                       event->damage, target_bundle->stats.health);
+
+                if (target_bundle->stats.health <= 0) {
+                    printf("  >> %s has been defeated!\n", target_bundle->name.name);
+                    death_queue_push(world->death_queue, event->target);
+
+                    // Clear attacker's target
+                    attacker_bundle->combat.target = (Entity){UINT32_MAX, 0};
+                    attacker_bundle->combat.is_attacking = false;
+
+                    // Mark that we need to update weakest cache
+                    world->needs_target_update = true;
+                }
+            }
+        }
+    }
+
+    // Only mark cache dirty if health values actually changed
+    if (any_damage_dealt) {
+        world->needs_target_update = true;
+    }
+
     arena_restore(world->battle_arena, checkpoint);
 }
 
+/**
+ * @brief Process all queued deaths.
+ */
 void combat_system_process_deaths(World *world) {
+    if (world->death_queue->count > 0) {
+        // Deaths mean the weakest might have changed
+        world->needs_target_update = true;
+    }
     process_deaths(world->death_queue, world->storage_manager, world->entity_manager);
 }
 
+/**
+ * @brief Check if either team has won.
+ */
 bool combat_system_check_victory(World *world) {
     uint32_t team_a_alive = world->team_a_storage->dense_count;
     uint32_t team_b_alive = world->team_b_storage->dense_count;

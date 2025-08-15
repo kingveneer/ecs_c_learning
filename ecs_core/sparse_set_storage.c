@@ -82,7 +82,7 @@ void sparse_set_remove(SparseSet *set, const uint32_t entity) {
 }
 
 void* sparse_set_get(const SparseSet *set, const uint32_t entity) {
-    // NEW: Index-only sets never return component data.
+    // Index-only sets never return component data.
     // Also, this prevents reading from a NULL dense_data pointer.
     if (set->comp_size == 0) {
         return NULL;

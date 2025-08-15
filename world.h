@@ -24,18 +24,21 @@ typedef struct World {
     Arena *battle_arena; // reset per battle
 
     // Component Storages
-    SparseSet *stats_storage;
-    SparseSet *team_storage;
+    SparseSet *combatant_storage;
+    // index-only sets for fast team-based lookups
     SparseSet *team_a_storage;
     SparseSet *team_b_storage;
-    SparseSet *combat_storage;
-    SparseSet *name_storage;
 
     // Battle State
     uint32_t team_a_count;
     uint32_t team_b_count;
     bool battle_active;
     uint32_t turn_number;
+
+    // Targeting Cache
+    Entity weakest_team_a;
+    Entity weakest_team_b;
+    bool needs_target_update;
 } World;
 
 World* world_create(size_t max_entities);
