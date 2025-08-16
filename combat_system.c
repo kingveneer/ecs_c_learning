@@ -150,12 +150,12 @@ void combat_system_execute_attacks(World *world) {
                 target_bundle->stats.health -= event->damage;
                 any_damage_dealt = true;
 
-                printf("%s attacks %s for %d damage! (%d hp remaining)\n",
-                       attacker_bundle->name.name, target_bundle->name.name,
-                       event->damage, target_bundle->stats.health);
+               // printf("%s attacks %s for %d damage! (%d hp remaining)\n",
+                 //      attacker_bundle->name.name, target_bundle->name.name,
+                   //    event->damage, target_bundle->stats.health);
 
                 if (target_bundle->stats.health <= 0) {
-                    printf("  >> %s has been defeated!\n", target_bundle->name.name);
+                    //printf("  >> %s has been defeated!\n", target_bundle->name.name);
                     death_queue_push(world->death_queue, event->target);
 
                     // Clear attacker's target

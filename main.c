@@ -11,8 +11,8 @@ void run_battle(World *world) {
     printf("\n=== BATTLE BEGINS ===\n");
     world->battle_active = true;
 
-    while (world->battle_active && world->turn_number < 10000) {
-        printf("\n--- Turn %u ---\n", ++world->turn_number);
+    while (world->battle_active && world->turn_number < 50000) {
+        //printf("\n--- Turn %u ---\n", ++world->turn_number);
 
         // 1. Target acquisition
         combat_system_target_acquisition(world);
@@ -33,7 +33,7 @@ void run_battle(World *world) {
         // getchar();  // Press enter to continue
     }
 
-    if (world->turn_number >= 10000) {
+    if (world->turn_number >= 50000) {
         printf("\nBattle timeout - draw!\n");
     }
 
@@ -46,7 +46,7 @@ int main() {
     srand(time(NULL));
 
     // Create world
-    World *world = world_create(10000);
+    World *world = world_create(50000);
 
     printf("=== ECS BATTLE SIMULATOR ===\n");
 
