@@ -7,16 +7,37 @@
 #include <stdbool.h>
 #include "ecs_core/entity_manager.h"
 
+// Reordered for better cache alignment and access patterns
 typedef struct {
-    char name[32];  // "Team A Soldier #1"
+    // Hot data - accessed every frame (32 bytes)
+    int health;           // 4 bytes
+    int attack;           // 4 bytes
+    int defense;          // 4 bytes
+    uint8_t team_id;      // 1 byte
+    bool is_attacking;    // 1 byte
+    uint8_t _padding[2];  // 2 bytes padding for alignment
+    Entity target;        // 8 bytes
+    // Total: 24 bytes (fits well in cache)
+
+    // Cold data - rarely accessed during combat
+    int max_health;       // 4 bytes
+    float speed;          // 4 bytes
+    float attack_cooldown;// 4 bytes
+    uint32_t unit_number; // 4 bytes
+    char name[32];        // 32 bytes
+} CombatantBundle;
+
+// Simplified component structures for clarity
+typedef struct {
+    char name[32];
 } NameComponent;
 
 typedef struct {
-    uint8_t team_id;  // 0 = team A, 1 = team B
-    uint32_t unit_number;  // for display "Soldier #3"
+    uint8_t team_id;
+    uint32_t unit_number;
 } TeamComponent;
 
-typedef  struct {
+typedef struct {
     int health;
     int max_health;
     int attack;
@@ -29,13 +50,4 @@ typedef struct {
     Entity target;
     float attack_cooldown;
 } CombatComponent;
-
-// groups all combat-related components into a single, cache-friendly block of memory.
-typedef struct {
-    StatComponent stats;
-    TeamComponent team;
-    CombatComponent combat;
-    NameComponent name;
-} CombatantBundle;
-
 #endif //SPARSE_STORAGE_LEARNING_COMPONENTS_H

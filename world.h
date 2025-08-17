@@ -13,6 +13,15 @@
 #include "components.h"
 #include "entity_factory.h"
 
+#define WEAKEST_CACHE_SIZE 8
+
+//  Cache multiple weak targets per team
+typedef struct {
+    Entity targets[WEAKEST_CACHE_SIZE];
+    int healths[WEAKEST_CACHE_SIZE];
+    uint32_t count;
+} WeakestCache;
+
 typedef struct World {
     // ECS Core
     EntityManager *entity_manager;
@@ -35,10 +44,16 @@ typedef struct World {
     bool battle_active;
     uint32_t turn_number;
 
-    // Targeting Cache
+    // Targeting Cache (Enhanced)
     Entity weakest_team_a;
     Entity weakest_team_b;
+    int weakest_team_a_health;
+    int weakest_team_b_health;
     bool needs_target_update;
+
+    //  Multiple target caching
+    WeakestCache weakest_cache_a;
+    WeakestCache weakest_cache_b;
 } World;
 
 World* world_create(size_t max_entities);

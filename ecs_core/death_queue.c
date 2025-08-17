@@ -31,7 +31,7 @@ void death_queue_clear(DeathQueue *dq) {
     dq->count = 0;
 }
 
-void process_deaths(DeathQueue *dq, StorageManager *sm, EntityManager *em) {
+void process_deaths(DeathQueue *dq, StorageManager *sm, EntityManager *em, Arena *arena) {
     for (uint32_t i = 0; i < dq->count; i++) {
         Entity entity = dq->entities[i];
         entity_destroy(em, entity);

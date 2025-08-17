@@ -61,7 +61,7 @@ void entity_destroy(EntityManager *em, Entity e) {
     em->living_count--;
 }
 
-void entity_destroy_many(EntityManager *em, const Entity *entities, uint32_t count) {
+void entity_destroy_batch(EntityManager *em, const Entity *entities, uint32_t count) {
     for (uint32_t i = 0; i < count; i++) {
         entity_destroy(em, entities[i]);
     }

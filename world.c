@@ -6,14 +6,16 @@
 #include <stdio.h>
 
 World* world_create(size_t max_entities) {
-    // Create arenas
-    Arena *persistent = arena_create(16 * 1024 * 1024); // 16MB
-    Arena *battle = arena_create(16 * 1024 * 1024); // 16MB
+    // Create arenas - Increase size for better performance
+    Arena *persistent = arena_create(32 * 1024 * 1024); // 32MB
+    Arena *battle = arena_create(32 * 1024 * 1024); // 32MB
 
     // Allocate the world struct itself from the persistent arena
     World *world = arena_alloc(persistent, sizeof(World));
     world->persistent_arena = persistent;
     world->battle_arena = battle;
+    world->weakest_team_a_health = INT_MAX;
+    world->weakest_team_b_health = INT_MAX;
 
     // Initialize core ECS managers, allocating them in the persistent arena
     world->entity_manager = arena_alloc(persistent, sizeof(EntityManager));
@@ -22,8 +24,9 @@ World* world_create(size_t max_entities) {
     world->storage_manager = arena_alloc(persistent, sizeof(StorageManager));
     storage_manager_init(world->storage_manager, 16);
 
+    // Larger initial death queue
     world->death_queue = arena_alloc(persistent, sizeof(DeathQueue));
-    death_queue_init(world->death_queue, 16);
+    death_queue_init(world->death_queue, max_entities / 10); // Expect ~10% deaths per turn
 
     world->combatant_storage = arena_alloc(persistent, sizeof(SparseSet));
     sparse_set_init(world->combatant_storage, max_entities, sizeof(CombatantBundle), battle);
@@ -42,16 +45,28 @@ World* world_create(size_t max_entities) {
     world->battle_active = false;
     world->turn_number = 0;
 
-    // Initialize cache (NEW)
+    // Initialize cache
     world->weakest_team_a = (Entity){UINT32_MAX, 0};
     world->weakest_team_b = (Entity){UINT32_MAX, 0};
     world->needs_target_update = true;
+
+    // Initialize multi-target caches
+    world->weakest_cache_a.count = 0;
+    world->weakest_cache_b.count = 0;
+    for (int i = 0; i < WEAKEST_CACHE_SIZE; i++) {
+        world->weakest_cache_a.targets[i] = (Entity){UINT32_MAX, 0};
+        world->weakest_cache_b.targets[i] = (Entity){UINT32_MAX, 0};
+        world->weakest_cache_a.healths[i] = INT_MAX;
+        world->weakest_cache_b.healths[i] = INT_MAX;
+    }
 
     return world;
 }
 
 void world_reset_battle(World *world) {
     arena_reset(world->battle_arena);
+    world->weakest_team_a_health = INT_MAX;
+    world->weakest_team_b_health = INT_MAX;
 
     // Save the capacity before freeing
     uint32_t entity_capacity = world->entity_manager->capacity;
@@ -75,10 +90,20 @@ void world_reset_battle(World *world) {
     world->team_b_count = 0;
     world->turn_number = 0;
 
-    // Reset cache (NEW)
+    // Reset cache
     world->weakest_team_a = (Entity){UINT32_MAX, 0};
     world->weakest_team_b = (Entity){UINT32_MAX, 0};
     world->needs_target_update = true;
+
+    // Reset multi-target caches
+    world->weakest_cache_a.count = 0;
+    world->weakest_cache_b.count = 0;
+    for (int i = 0; i < WEAKEST_CACHE_SIZE; i++) {
+        world->weakest_cache_a.targets[i] = (Entity){UINT32_MAX, 0};
+        world->weakest_cache_b.targets[i] = (Entity){UINT32_MAX, 0};
+        world->weakest_cache_a.healths[i] = INT_MAX;
+        world->weakest_cache_b.healths[i] = INT_MAX;
+    }
 }
 
 void world_destroy(World *world) {

@@ -17,5 +17,5 @@ void death_queue_init(DeathQueue *dq, size_t initial_capacity);
 void death_queue_free(DeathQueue *dq);
 void death_queue_push(DeathQueue *dq, Entity e);
 void death_queue_clear(DeathQueue *dq);
-void process_deaths(DeathQueue *dq, StorageManager *sm, EntityManager *em);
+void process_deaths(DeathQueue *dq, StorageManager *sm, EntityManager *em, Arena *arena);
 #endif //SPARSE_STORAGE_LEARNING_DEATH_QUEUE_H

@@ -40,9 +40,15 @@ void storage_manager_remove_entity(StorageManager *sm, uint32_t entity_id) {
     }
 }
 
-// Batch version: remove many entity IDs (calls the single version internally).
+// True batch removal - iterate each set once, remove all entities
 void storage_manager_remove_entities(StorageManager *sm, const uint32_t *entity_ids, size_t n) {
-    for (size_t i = 0; i < n; ++i) {
-        storage_manager_remove_entity(sm, entity_ids[i]);
+    for (size_t i = 0; i < sm->count; ++i) {
+        SparseSet *s = sm->sets[i];
+        for (size_t j = 0; j < n; ++j) {
+            uint32_t entity_id = entity_ids[j];
+            if (entity_id < s->capacity) {
+                sparse_set_remove(s, entity_id);
+            }
+        }
     }
 }
