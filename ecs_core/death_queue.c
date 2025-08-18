@@ -20,8 +20,9 @@ void death_queue_free(DeathQueue *dq) {
 }
 
 void death_queue_push(DeathQueue *dq, Entity e) {
-    if (dq->count >= dq->capacity) {// if not enough capacity,
-        dq->capacity *= 2; // double it, and realloc to new capacity
+    // Grow the queue if we've reached capacity
+    if (dq->count >= dq->capacity) {
+        dq->capacity *= 2; // Double the capacity
         dq->entities = realloc(dq->entities, sizeof(Entity) * dq->capacity);
     }
     dq->entities[dq->count++] = e;
@@ -32,10 +33,17 @@ void death_queue_clear(DeathQueue *dq) {
 }
 
 void process_deaths(DeathQueue *dq, StorageManager *sm, EntityManager *em, Arena *arena) {
+    // Process all queued entities for destruction
     for (uint32_t i = 0; i < dq->count; i++) {
         Entity entity = dq->entities[i];
+
+        // Destroy the entity handle (increments generation, recycles ID)
         entity_destroy(em, entity);
+
+        // Remove the entity from all component storage systems
         storage_manager_remove_entity(sm, entity.id);
     }
+
+    // Clear the queue after processing all destructions
     death_queue_clear(dq);
 }

@@ -17,17 +17,16 @@ Arena* arena_create(size_t size) {
         free(arena);
         return NULL;
     }
+
     arena->size = size;
     arena->offset = 0;
     arena->next = NULL;
 
-    // zero the memory
+    // Zero the memory for deterministic behavior
     memset(arena->buffer, 0, size);
 
     return arena;
-    }
-
-
+}
 
 void* arena_alloc(Arena *arena, size_t size) {
     // Default to 8-byte alignment for most platforms
@@ -35,16 +34,21 @@ void* arena_alloc(Arena *arena, size_t size) {
 }
 
 void* arena_alloc_aligned(Arena *arena, size_t size, size_t alignment) {
-    // Calculate aligned offset
+    // Calculate the next aligned offset using bit manipulation
+    // (offset + alignment - 1) rounds up, then & ~(alignment - 1) aligns down
     size_t aligned_offset = (arena->offset + alignment - 1) & ~(alignment - 1);
 
-    // Check if we have enough space
+    // Check if we have enough space remaining in the buffer
     if (aligned_offset + size > arena->size) {
-        // Could implement arena chaining here
-        // For now, NULL
+        // Could implement arena chaining here for automatic growth
+        // For now, return NULL to indicate allocation failure
         return NULL;
     }
+
+    // Calculate pointer to the aligned memory location
     void *ptr = arena->buffer + aligned_offset;
+
+    // Update offset to point past this allocation
     arena->offset = aligned_offset + size;
 
     return ptr;
@@ -52,7 +56,7 @@ void* arena_alloc_aligned(Arena *arena, size_t size, size_t alignment) {
 
 void arena_reset(Arena *arena) {
     arena->offset = 0;
-    // Optionally clear memory
+    // Optionally clear memory for deterministic behavior
     // memset(arena->buffer, 0, arena->size);
 }
 

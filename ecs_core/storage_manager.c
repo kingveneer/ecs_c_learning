@@ -16,6 +16,11 @@ void storage_manager_free(StorageManager *sm) {
     sm->count = sm->capacity = 0;
 }
 
+/**
+ * @brief Grow the sets array if it has reached capacity
+ * @param sm Pointer to the StorageManager
+ * @note Doubles the capacity when growth is needed
+ */
 static void storage_manager_grow_if_needed(StorageManager *sm) {
     if (sm->count >= sm->capacity) {
         size_t new_cap = sm->capacity * 2;
@@ -29,7 +34,6 @@ void storage_manager_register(StorageManager *sm, SparseSet *set) {
     sm->sets[sm->count++] = set;
 }
 
-// Remove a single entity from every registered sparse set.
 void storage_manager_remove_entity(StorageManager *sm, uint32_t entity_id) {
     for (size_t i = 0; i < sm->count; ++i) {
         SparseSet *s = sm->sets[i];
@@ -40,7 +44,6 @@ void storage_manager_remove_entity(StorageManager *sm, uint32_t entity_id) {
     }
 }
 
-// True batch removal - iterate each set once, remove all entities
 void storage_manager_remove_entities(StorageManager *sm, const uint32_t *entity_ids, size_t n) {
     for (size_t i = 0; i < sm->count; ++i) {
         SparseSet *s = sm->sets[i];

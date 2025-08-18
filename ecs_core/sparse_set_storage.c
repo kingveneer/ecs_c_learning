@@ -15,19 +15,19 @@ void sparse_set_init(SparseSet *set, const uint32_t capacity, const size_t comp_
     set->dense_count = 0;
     set->arena = arena;
 
-    // Allocate from arena
+    // Allocate sparse array from arena
     set->sparse = arena_alloc(arena, sizeof(uint32_t) * capacity);
 
-    // Initialize sparse array
+    // Initialize sparse array with sentinel values
     for (uint32_t i = 0; i < capacity; i++) {
         set->sparse[i] = UINT32_MAX;
     }
 
     set->dense_entities = arena_alloc(arena, sizeof(uint32_t) * capacity);
 
-    // Only allocate component data if there is component data to store.
+    // Only allocate component data if there is component data to store
     if (set->comp_size > 0) {
-        // Align component data for better cache performance
+        // Align component data to 64 bytes for better cache performance
         set->dense_data = arena_alloc_aligned(arena, comp_size * capacity, 64);
     } else {
         set->dense_data = NULL; // For index-only sets
@@ -36,21 +36,23 @@ void sparse_set_init(SparseSet *set, const uint32_t capacity, const size_t comp_
 
 void sparse_set_add(SparseSet *set, const uint32_t entity, const void *component_data) {
     const uint32_t index = set->sparse[entity];
-    // if has component, overwrite
+
+    // If entity already has component, update in-place
     if (index != UINT32_MAX) {
-        // only copy data if the set is not index-only.
+        // Only copy data if the set is not index-only
         if (set->comp_size > 0) {
             void *dest = (char*)set->dense_data + (index * set->comp_size);
             memcpy(dest, component_data, set->comp_size);
         }
         return;
     }
-    // create new component
+
+    // Create new component entry
     const uint32_t dense_index = set->dense_count++;
     set->dense_entities[dense_index] = entity;
     set->sparse[entity] = dense_index;
 
-    // Only copy data if the set is not index-only.
+    // Only copy data if the set is not index-only
     if (set->comp_size > 0) {
         void *dest = (char*)set->dense_data + (dense_index * set->comp_size);
         memcpy(dest, component_data, set->comp_size);
@@ -60,34 +62,38 @@ void sparse_set_add(SparseSet *set, const uint32_t entity, const void *component
 void sparse_set_remove(SparseSet *set, const uint32_t entity) {
     const uint32_t index = set->sparse[entity];
     if (index == UINT32_MAX) {
-        return; // if no component, return stupid
+        return; // Entity doesn't have this component
     }
-    // get the last entity index, arrays are 0 indexed so -1 from dense_count
-    const uint32_t last_index = set->dense_count-1;
+
+    // Get the last entity's data for swap-and-pop
+    const uint32_t last_index = set->dense_count - 1;
     const uint32_t last_entity = set->dense_entities[last_index];
 
-    //copy last entity into removed slot from provided entity
+    // Move last entity to removed slot (swap-and-pop)
     set->dense_entities[index] = last_entity;
 
-    // only move component data if there is any to move.
+    // Only move component data if there is any to move
     if (set->comp_size > 0) {
         void *dest = (char*)set->dense_data + (index * set->comp_size);
         const void *src = (char*)set->dense_data + (last_index * set->comp_size);
-        memcpy(dest, src, set->comp_size); // from, to, size
+        memcpy(dest, src, set->comp_size);
     }
 
+    // Update sparse mappings
     set->sparse[last_entity] = index;
     set->sparse[entity] = UINT32_MAX;
     set->dense_count--;
 }
 
 void* sparse_set_get(const SparseSet *set, const uint32_t entity) {
-    // Index-only sets never return component data.
-    // Also, this prevents reading from a NULL dense_data pointer.
+    // Index-only sets never return component data
+    // Also prevents reading from a NULL dense_data pointer
     if (set->comp_size == 0) {
         return NULL;
     }
+
     const uint32_t index = set->sparse[entity];
     if (index == UINT32_MAX) return NULL;
+
     return (char*)set->dense_data + (index * set->comp_size);
 }
