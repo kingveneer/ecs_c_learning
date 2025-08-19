@@ -5,9 +5,6 @@
 #ifndef SPARSE_STORAGE_LEARNING_ENTITY_MANAGER_H
 #define SPARSE_STORAGE_LEARNING_ENTITY_MANAGER_H
 
-
-#include <stdint.h>
-
 /**
  * @file entity_manager.h
  * @brief Robust entity management with handle validation and ID recycling

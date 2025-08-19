@@ -20,4 +20,6 @@ add_executable(sparse_storage_learning main.c
         world.c
         world.h
         combat_system.c
-        combat_system.h)
+        combat_system.h
+        ecs_core/component_allocator.c
+        ecs_core/component_allocator.h)
